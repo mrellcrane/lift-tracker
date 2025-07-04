@@ -35,12 +35,12 @@ export default function LiftCard({
   // Persist the last weight when sets change
   useEffect(() => {
     if (sets.length > 0) {
-      const lastSet = sets.sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).pop();
+      const lastSet = [...sets].sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).pop();
       if (lastSet) {
         setWeight(String(lastSet.weight));
       }
     }
-  }, [workoutExercise]);
+  }, [sets]);
 
   const handleSetLogged = () => {
     setIsResting(true);

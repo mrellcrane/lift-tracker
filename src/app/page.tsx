@@ -48,5 +48,5 @@ export default async function Home() {
     .eq("user_id", session.user.id)
     .order("workout_date", { ascending: false });
   
-  return <Dashboard email={session.user.email} allWorkouts={workouts} />;
+  return <Dashboard allWorkouts={workouts} />;
 }

@@ -11,9 +11,15 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface ChartDataPoint {
+  reps: number;
+  weight: number;
+  created_at: string;
+}
+
+const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
-    const data = payload[0].payload;
+    const data = payload[0].payload as ChartDataPoint;
     return (
       <div className="bg-slate-800 bg-opacity-90 text-white p-3 rounded-lg shadow-lg border border-slate-700">
         <p className="font-semibold">{`Date: ${new Date(
@@ -29,7 +35,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export default function ProgressChart({ data }: { data: any[] }) {
+export default function ProgressChart({ data }: { data: ChartDataPoint[] }) {
   if (data.length === 0) {
     return (
       <div className="text-center text-slate-400 py-8">

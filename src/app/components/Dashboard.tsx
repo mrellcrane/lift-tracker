@@ -24,11 +24,11 @@ import LiftCard from "./LiftCard";
 import ProgressChart from "./ProgressChart";
 
 interface DashboardProps {
-  email: string | undefined;
+  // email: string | undefined; // No longer needed
   allWorkouts: WorkoutData[] | null;
 }
 
-export default function Dashboard({ email, allWorkouts }: DashboardProps) {
+export default function Dashboard({ allWorkouts }: DashboardProps) {
   const allLifts = ["Low Row", "Lat Pulldown", "Bench Press", "Pull-ups", "Leg Press", "Bicep Curl"];
   const [selectedLift, setSelectedLift] = useState(allLifts[2]); // Default to Bench Press
   
