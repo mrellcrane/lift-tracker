@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { addSet } from "@/app/actions";
 import RestTimer from "./RestTimer";
 
@@ -30,7 +30,8 @@ export default function LiftCard({
   const [reps, setReps] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
   const repsInputRef = useRef<HTMLInputElement>(null);
-  const sets = workoutExercise?.sets ?? [];
+  
+  const sets = useMemo(() => workoutExercise?.sets ?? [], [workoutExercise]);
 
   // Persist the last weight when sets change
   useEffect(() => {

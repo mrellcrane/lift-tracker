@@ -17,9 +17,14 @@ interface ChartDataPoint {
   created_at: string;
 }
 
-const CustomTooltip = ({ active, payload }: any) => {
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: { payload: ChartDataPoint }[];
+}
+
+const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
-    const data = payload[0].payload as ChartDataPoint;
+    const data = payload[0].payload;
     return (
       <div className="bg-slate-800 bg-opacity-90 text-white p-3 rounded-lg shadow-lg border border-slate-700">
         <p className="font-semibold">{`Date: ${new Date(
