@@ -12,7 +12,7 @@ type ExerciseWithSets = {
     id: number;
     reps: number;
     weight: number;
-    created_at: string;
+    created_at: string | null;
   }[];
 };
 
@@ -35,8 +35,9 @@ export default function LiftCard({
 
   // Persist the last weight when sets change
   useEffect(() => {
-    if (sets.length > 0) {
-      const lastSet = [...sets].sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).pop();
+    const validSets = sets.filter(s => s.created_at);
+    if (validSets.length > 0) {
+      const lastSet = [...validSets].sort((a,b) => new Date(a.created_at!).getTime() - new Date(b.created_at!).getTime()).pop();
       if (lastSet) {
         setWeight(String(lastSet.weight));
       }
@@ -119,7 +120,7 @@ export default function LiftCard({
                 sets.map((set) => (
                     <div key={set.id} className="bg-slate-700/50 p-3 rounded-lg flex justify-between items-center text-sm">
                         <span className="text-slate-400">
-                            {new Date(set.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {set.created_at ? new Date(set.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Saving...'}
                         </span>
                         <span className="font-mono text-white">{set.reps} reps @ {set.weight} lbs</span>
                     </div>

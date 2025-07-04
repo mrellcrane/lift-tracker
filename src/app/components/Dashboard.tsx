@@ -14,7 +14,7 @@ type WorkoutData = {
       id: number;
       reps: number;
       weight: number;
-      created_at: string;
+      created_at: string | null;
     }[];
   }[];
 };
@@ -42,6 +42,7 @@ export default function Dashboard({ allWorkouts }: DashboardProps) {
     ?.flatMap(w => w.workout_exercises)
     .filter(we => we.exercise === selectedLift)
     .flatMap(we => we.sets)
+    .filter((set): set is typeof set & { created_at: string } => !!set.created_at)
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) ?? [];
 
   return (
