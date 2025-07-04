@@ -22,6 +22,7 @@ type WorkoutData = {
 import { useState } from "react";
 import LiftCard from "./LiftCard";
 import ProgressChart from "./ProgressChart";
+import { signOut } from "../actions";
 
 interface DashboardProps {
   // email: string | undefined; // No longer needed
@@ -47,9 +48,17 @@ export default function Dashboard({ allWorkouts }: DashboardProps) {
 
   return (
     <div className="w-full max-w-2xl mx-auto p-4">
-      <header className="text-center my-8">
+      <header className="text-center my-8 relative">
         <h1 className="text-4xl font-bold text-blue-400">LiftTrack</h1>
         <p className="text-slate-400">Log your workouts. See your progress.</p>
+        <form action={signOut} className="absolute top-0 right-0">
+          <button
+            type="submit"
+            className="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-slate-700 text-slate-300 hover:bg-slate-600"
+          >
+            Log Out
+          </button>
+        </form>
       </header>
       
       <div className="flex flex-wrap justify-center gap-2 mb-8">
