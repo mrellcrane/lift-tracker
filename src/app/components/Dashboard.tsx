@@ -10,13 +10,6 @@ import ProgressChart from "./ProgressChart";
 import { signOut } from "../actions";
 import WorkoutHistory from "./WorkoutHistory";
 
-type SetUI = {
-  id?: number;
-  reps: string;
-  weight: string;
-  logged: boolean;
-};
-
 // A more flexible type for the workout data we are passing in
 type WorkoutData = {
   id: number;

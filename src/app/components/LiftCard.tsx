@@ -199,13 +199,13 @@ export default function LiftCard({
                 Start New Workout
             </button>
 
-            {todaysWorkoutExercises.map((workout, idx) => (
+            {todaysWorkoutExercises.map((workout) => (
                 <div key={workout.id} className="bg-gray-800 p-4 rounded-lg mb-4">
                     <h3 className="text-xl font-bold mb-2 text-white text-center">
-                        Today's Workout #{workout.instance}
+                        Today&apos;s Workout #{workout.instance}
                     </h3>
                      <div className="mt-2 text-white space-y-1 text-center">
-                        {workout.sets.sort((a,b) => a.set_order - b.set_order).map((set, index) => (
+                        {workout.sets.sort((a,b) => a.set_order - b.set_order).map((set) => (
                             <div key={set.id}>{set.reps} reps @ {set.weight} lbs</div>
                         ))}
                     </div>
