@@ -255,4 +255,62 @@ export async function deleteSet(setId: number) {
 // It can be removed entirely.
 // export async function completeExercise(exerciseName: string) {
 //   console.log(`Completed exercise: ${exerciseName}`);
-// } 
+// }
+
+export async function getLastWorkoutForExercise(exerciseName: string) {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+      },
+    }
+  );
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Find the latest workout from a PREVIOUS day that contains the target exercise.
+  const { data: latestWorkout, error } = await supabase
+    .from("workouts")
+    .select(
+      `
+      workout_exercises!inner (
+        instance,
+        sets (
+          reps,
+          weight,
+          set_order
+        )
+      )
+    `
+    )
+    .eq("user_id", user.id)
+    .eq("workout_exercises.exercise", exerciseName)
+    .lt('workout_date', today) // Important: Only look for workouts before today
+    .order("workout_date", { ascending: false })
+    .limit(1)
+    .single();
+  
+  if (error || !latestWorkout) {
+    return null;
+  }
+  
+  // From that workout, find the instance with the highest number
+  const latestInstance = latestWorkout.workout_exercises.sort(
+    (a, b) => b.instance - a.instance
+  )[0];
+
+  return latestInstance;
+} 

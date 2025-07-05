@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   getExerciseSettings,
   updateExerciseSettings,
+  getLastWorkoutForExercise,
   createWorkoutExerciseInstance,
   logSet,
   deleteSet,
@@ -48,40 +49,63 @@ export default function LiftCard({
   const [workoutExerciseId, setWorkoutExerciseId] = useState<number | undefined>();
   const [viewState, setViewState] = useState<'loading' | 'active' | 'summary'>('loading');
 
-  const startNewWorkout = useCallback(async (isFirstLoad: boolean = false) => {
-    // On the very first load, we don't create an instance, we just prepare the UI.
-    // An instance will be created only when the first set is logged.
-    if (!isFirstLoad) {
-        try {
-            const newWorkoutExercise = await createWorkoutExerciseInstance(exerciseName);
-            setWorkoutExerciseId(newWorkoutExercise.id);
-        } catch (error) {
-            console.error("Failed to create new workout instance:", error);
-            // Optionally, show an error to the user
-            return;
-        }
+  const startNewWorkout = useCallback(async () => {
+    // 1. Determine the data for pre-population.
+    let lastWorkoutData = null;
+    
+    // Prioritize workouts from today if they exist.
+    if (todaysWorkoutExercises.length > 0) {
+      lastWorkoutData = [...todaysWorkoutExercises].sort(
+        (a, b) => b.instance - a.instance
+      )[0];
+    } else {
+      // Otherwise, fetch the last workout from a previous day.
+      lastWorkoutData = await getLastWorkoutForExercise(exerciseName);
     }
 
-    const settings = await getExerciseSettings(exerciseName);
-    const initialSets: SetUI[] = Array(settings.default_sets).fill(null).map(() => ({
-        reps: "",
-        weight: "",
-        logged: false,
-    }));
+    // 2. Create the new workout instance for the session we are about to start.
+    try {
+      const newWorkoutExercise = await createWorkoutExerciseInstance(exerciseName);
+      setWorkoutExerciseId(newWorkoutExercise.id);
+    } catch (error) {
+      console.error("Failed to create new workout instance:", error);
+      return; // Stop if we can't create a new session
+    }
     
+    // 3. Prepare the sets for the UI.
+    const settings = await getExerciseSettings(exerciseName);
+    let initialSets: SetUI[];
+
+    if (lastWorkoutData && lastWorkoutData.sets.length > 0) {
+      initialSets = lastWorkoutData.sets
+        .sort((a, b) => a.set_order - b.set_order)
+        .map((s) => ({
+          reps: String(s.reps),
+          weight: String(s.weight),
+          logged: false,
+        }));
+    } else {
+      initialSets = Array(settings.default_sets)
+        .fill(null)
+        .map(() => ({ reps: "", weight: "", logged: false }));
+    }
+
+    // 4. Update the component state to show the new workout.
     setSets(initialSets);
     setRestDuration(settings.rest_duration_seconds);
     setIsResting(false);
     setViewState('active');
-  }, [exerciseName]);
+  }, [exerciseName, todaysWorkoutExercises]);
 
   useEffect(() => {
     if (todaysWorkoutExercises.length > 0) {
-        setViewState('summary');
+      setViewState('summary');
     } else {
-        startNewWorkout(true); // isFirstLoad = true
+      // If no workouts today, prepare a new workout form immediately,
+      // which will be pre-populated from the last session on a previous day.
+      startNewWorkout();
     }
-  }, [todaysWorkoutExercises, startNewWorkout]);
+  }, [exerciseName, todaysWorkoutExercises, startNewWorkout]);
 
   const handleSetInputChange = (
     index: number,
@@ -119,18 +143,13 @@ export default function LiftCard({
       return;
     }
 
-    const getWorkoutExerciseId = async (): Promise<number> => {
-      if (workoutExerciseId) {
-        return workoutExerciseId;
-      }
-      const newWorkoutExercise = await createWorkoutExerciseInstance(exerciseName);
-      setWorkoutExerciseId(newWorkoutExercise.id);
-      return newWorkoutExercise.id;
-    };
+    if (!workoutExerciseId) {
+        console.error("Cannot log set without a workout session ID.");
+        return;
+    }
 
     try {
-      const currentWorkoutExerciseId = await getWorkoutExerciseId();
-      const newSet = await logSet(currentWorkoutExerciseId, index, reps, weight);
+      const newSet = await logSet(workoutExerciseId, index, reps, weight);
       
       const newSets = [...sets];
       newSets[index].logged = true;
@@ -174,7 +193,7 @@ export default function LiftCard({
             <h2 className="text-3xl font-bold text-center mb-6 text-white">{exerciseName}</h2>
             
             <button
-                onClick={() => startNewWorkout(false)}
+                onClick={startNewWorkout}
                 className="w-full mb-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition-all"
             >
                 Start New Workout
