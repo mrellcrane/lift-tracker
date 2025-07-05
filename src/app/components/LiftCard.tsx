@@ -1,134 +1,293 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
-import { addSet } from "@/app/actions";
+import { useState, useEffect, useCallback } from "react";
+import {
+  getExerciseSettings,
+  updateExerciseSettings,
+  createWorkoutExerciseInstance,
+  logSet,
+  deleteSet,
+} from "@/app/actions";
 import RestTimer from "./RestTimer";
+
+type SetUI = {
+  id?: number;
+  reps: string;
+  weight: string;
+  logged: boolean;
+};
 
 // A more flexible type for the exercise data we are passing in
 type ExerciseWithSets = {
   id: number;
   exercise: string;
+  instance: number;
   sets: {
     id: number;
     reps: number;
     weight: number;
     created_at: string | null;
+    set_order: number;
   }[];
 };
 
 interface LiftCardProps {
   exerciseName: string;
-  workoutExercise: ExerciseWithSets | undefined;
+  todaysWorkoutExercises: ExerciseWithSets[];
+  onComplete: () => void;
 }
 
 export default function LiftCard({
   exerciseName,
-  workoutExercise,
+  todaysWorkoutExercises,
+  onComplete,
 }: LiftCardProps) {
   const [isResting, setIsResting] = useState(false);
-  const [weight, setWeight] = useState("");
-  const [reps, setReps] = useState("");
-  const formRef = useRef<HTMLFormElement>(null);
-  const repsInputRef = useRef<HTMLInputElement>(null);
-  
-  const sets = useMemo(() => workoutExercise?.sets ?? [], [workoutExercise]);
+  const [sets, setSets] = useState<SetUI[]>([]);
+  const [restDuration, setRestDuration] = useState(120);
+  const [workoutExerciseId, setWorkoutExerciseId] = useState<number | undefined>();
+  const [viewState, setViewState] = useState<'loading' | 'active' | 'summary'>('loading');
 
-  // Persist the last weight when sets change
-  useEffect(() => {
-    const validSets = sets.filter(s => s.created_at);
-    if (validSets.length > 0) {
-      const lastSet = [...validSets].sort((a,b) => new Date(a.created_at!).getTime() - new Date(b.created_at!).getTime()).pop();
-      if (lastSet) {
-        setWeight(String(lastSet.weight));
-      }
+  const startNewWorkout = useCallback(async (isFirstLoad: boolean = false) => {
+    // On the very first load, we don't create an instance, we just prepare the UI.
+    // An instance will be created only when the first set is logged.
+    if (!isFirstLoad) {
+        try {
+            const newWorkoutExercise = await createWorkoutExerciseInstance(exerciseName);
+            setWorkoutExerciseId(newWorkoutExercise.id);
+        } catch (error) {
+            console.error("Failed to create new workout instance:", error);
+            // Optionally, show an error to the user
+            return;
+        }
     }
-  }, [sets]);
 
-  const handleSetLogged = () => {
-    setIsResting(true);
-    setReps(""); // Clear reps
-    // Weight is already persisted via state
+    const settings = await getExerciseSettings(exerciseName);
+    const initialSets: SetUI[] = Array(settings.default_sets).fill(null).map(() => ({
+        reps: "",
+        weight: "",
+        logged: false,
+    }));
+    
+    setSets(initialSets);
+    setRestDuration(settings.rest_duration_seconds);
+    setIsResting(false);
+    setViewState('active');
+  }, [exerciseName]);
+
+  useEffect(() => {
+    if (todaysWorkoutExercises.length > 0) {
+        setViewState('summary');
+    } else {
+        startNewWorkout(true); // isFirstLoad = true
+    }
+  }, [todaysWorkoutExercises, startNewWorkout]);
+
+  const handleSetInputChange = (
+    index: number,
+    field: "reps" | "weight",
+    value: string
+  ) => {
+    const newSets = [...sets];
+    newSets[index][field] = value;
+    setSets(newSets);
+  };
+
+  const handleAddSet = () => {
+    setSets([...sets, { reps: "", weight: "", logged: false }]);
+  };
+
+  const handleDeleteSet = async (index: number) => {
+    const setToDelete = sets[index];
+    if (setToDelete.id && viewState === 'active') { // Only allow delete in active state from DB
+        try {
+            await deleteSet(setToDelete.id);
+        } catch (error) {
+            console.error("Failed to delete set from DB:", error);
+            return;
+        }
+    }
+    setSets(sets.filter((_, i) => i !== index));
+  };
+
+  const handleLogSet = async (index: number) => {
+    const set = sets[index];
+    const reps = parseInt(set.reps, 10);
+    const weight = parseInt(set.weight, 10);
+
+    if (isNaN(reps) || isNaN(weight)) {
+      return;
+    }
+
+    const getWorkoutExerciseId = async (): Promise<number> => {
+      if (workoutExerciseId) {
+        return workoutExerciseId;
+      }
+      const newWorkoutExercise = await createWorkoutExerciseInstance(exerciseName);
+      setWorkoutExerciseId(newWorkoutExercise.id);
+      return newWorkoutExercise.id;
+    };
+
+    try {
+      const currentWorkoutExerciseId = await getWorkoutExerciseId();
+      const newSet = await logSet(currentWorkoutExerciseId, index, reps, weight);
+      
+      const newSets = [...sets];
+      newSets[index].logged = true;
+      newSets[index].id = newSet.id;
+      setSets(newSets);
+      setIsResting(true);
+
+    } catch (error) {
+      console.error("Failed to log set:", error);
+    }
+  };
+
+  const handleCompleteExercise = () => {
+    const loggedSets = sets.filter(s => s.logged);
+    if (loggedSets.length === 0) return;
+
+    onComplete();
   };
 
   const handleTimerEnd = () => {
     setIsResting(false);
-    repsInputRef.current?.focus();
   };
-  
+
+  const handleRestTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newDuration = parseInt(e.target.value, 10);
+    if (!isNaN(newDuration) && newDuration > 0) {
+        setRestDuration(newDuration);
+        updateExerciseSettings(exerciseName, { rest_duration_seconds: newDuration });
+    }
+  };
+
   const isBodyweight = exerciseName === "Pull-ups";
+
+  if (viewState === 'loading') {
+    return <div className="text-center text-gray-400">Loading workout...</div>;
+  }
+
+  if (viewState === 'summary') {
+    return (
+        <div>
+            <h2 className="text-3xl font-bold text-center mb-6 text-white">{exerciseName}</h2>
+            
+            <button
+                onClick={() => startNewWorkout(false)}
+                className="w-full mb-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition-all"
+            >
+                Start New Workout
+            </button>
+
+            {todaysWorkoutExercises.map((workout, idx) => (
+                <div key={workout.id} className="bg-gray-800 p-4 rounded-lg mb-4">
+                    <h3 className="text-xl font-bold mb-2 text-white text-center">
+                        Today's Workout #{workout.instance}
+                    </h3>
+                     <div className="mt-2 text-white space-y-1 text-center">
+                        {workout.sets.sort((a,b) => a.set_order - b.set_order).map((set, index) => (
+                            <div key={set.id}>{set.reps} reps @ {set.weight} lbs</div>
+                        ))}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+  }
 
   return (
     <div>
-      <h2 className="text-3xl font-bold text-center mb-6 text-white">{exerciseName}</h2>
+      <h2 className="text-3xl font-bold text-center mb-6 text-white">
+        {exerciseName}
+      </h2>
 
       {isResting && (
-        <RestTimer duration={120} onTimerEnd={handleTimerEnd} onSkip={handleTimerEnd} />
+        <RestTimer
+            duration={restDuration}
+            onTimerEnd={handleTimerEnd}
+            onSkip={handleTimerEnd}
+          />
       )}
-      
-      <form
-        ref={formRef}
-        action={async (formData) => {
-          await addSet(formData);
-          handleSetLogged();
-        }}
-      >
-        <input type="hidden" name="exerciseName" value={exerciseName} />
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div>
-            <label htmlFor="reps" className="block text-sm font-medium text-gray-400 mb-2">Reps</label>
-            <input
-              ref={repsInputRef}
-              id="reps"
-              name="reps"
-              type="number"
-              value={reps}
-              onChange={(e) => setReps(e.target.value)}
-              className="w-full bg-gray-800 text-white p-4 rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 outline-none text-center"
-              placeholder="12"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="weight" className="block text-sm font-medium text-gray-400 mb-2">
-              {isBodyweight ? "Added Weight (lbs)" : "Weight (lbs)"}
-            </label>
-            <input
-              id="weight"
-              name="weight"
-              type="number"
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-              className="w-full bg-gray-800 text-white p-4 rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 outline-none text-center"
-              placeholder={isBodyweight ? "0" : "145"}
-              required
-            />
-          </div>
-        </div>
-        <button
-          type="submit"
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition-all duration-300 ease-in-out disabled:bg-gray-600 disabled:cursor-not-allowed"
-          disabled={isResting}
-        >
-          {isResting ? "Resting..." : "Log Set & Start Rest"}
-        </button>
-      </form>
 
-      <div className="mt-8">
-        <h3 className="text-xl font-bold mb-4 text-white">Session History</h3>
-        <div className="space-y-3">
-            {sets.length > 0 ? (
-                sets.map((set) => (
-                    <div key={set.id} className="bg-gray-800 p-3 rounded-md flex justify-between items-center text-sm">
-                        <span className="text-gray-400">
-                            {set.created_at ? new Date(set.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Saving...'}
-                        </span>
-                        <span className="font-semibold text-white">{set.reps} reps @ {set.weight} lbs</span>
-                    </div>
-                ))
-            ) : (
-                <p className="text-center text-gray-500 py-4">Your sets for this session will appear here.</p>
-            )}
+      <div className="space-y-4">
+        <div className="grid grid-cols-5 gap-4 text-center font-semibold text-gray-400">
+            <div>#</div>
+            <div>Reps</div>
+            <div>Weight (lbs)</div>
+            <div></div>
+            <div></div>
         </div>
+        {sets.map((set, index) => (
+          <div key={index} className="grid grid-cols-5 gap-4 items-center">
+            <div className="flex items-center justify-center h-12 w-12 rounded-full bg-gray-700 text-white font-bold text-lg">
+              {index + 1}
+            </div>
+            <div>
+              <input
+                type="number"
+                value={set.reps}
+                onChange={(e) =>
+                  handleSetInputChange(index, "reps", e.target.value)
+                }
+                className="w-full bg-gray-800 text-white p-4 rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 outline-none text-center"
+                placeholder="0"
+                disabled={set.logged}
+              />
+            </div>
+            <div>
+              <input
+                type="number"
+                value={set.weight}
+                onChange={(e) =>
+                  handleSetInputChange(index, "weight", e.target.value)
+                }
+                className="w-full bg-gray-800 text-white p-4 rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 outline-none text-center"
+                placeholder={isBodyweight ? "0" : "145"}
+                disabled={set.logged}
+              />
+            </div>
+            <button
+              onClick={() => handleLogSet(index)}
+              disabled={set.logged || isResting}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition-all duration-300 ease-in-out disabled:bg-gray-600 disabled:cursor-not-allowed"
+            >
+              {set.logged ? "Logged" : "Log Set"}
+            </button>
+            <button onClick={() => handleDeleteSet(index)} className="text-gray-500 hover:text-red-500 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 flex gap-4">
+        <button
+          onClick={handleAddSet}
+          className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-md transition-all"
+        >
+          Add Set
+        </button>
+        <button
+          onClick={handleCompleteExercise}
+          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition-all"
+        >
+          Complete Exercise
+        </button>
+      </div>
+      
+      <div className="mt-6">
+            <label htmlFor="rest-duration" className="block text-sm font-medium text-gray-400 mb-2 text-center">Rest Duration (seconds)</label>
+            <input
+              id="rest-duration"
+              type="number"
+              value={restDuration}
+              onChange={handleRestTimeChange}
+              className="w-full bg-gray-800 text-white p-4 rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 outline-none text-center"
+              placeholder="120"
+            />
       </div>
     </div>
   );

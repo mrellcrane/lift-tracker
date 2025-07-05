@@ -6,9 +6,10 @@ interface RestTimerProps {
   duration: number;
   onTimerEnd: () => void;
   onSkip: () => void;
+  isPrimaryDisplay?: boolean;
 }
 
-export default function RestTimer({ duration, onTimerEnd, onSkip }: RestTimerProps) {
+export default function RestTimer({ duration, onTimerEnd, onSkip, isPrimaryDisplay = false }: RestTimerProps) {
   const [timeLeft, setTimeLeft] = useState(duration);
 
   useEffect(() => {
@@ -24,6 +25,10 @@ export default function RestTimer({ duration, onTimerEnd, onSkip }: RestTimerPro
     `${Math.floor(seconds / 60)}:${(seconds % 60)
       .toString()
       .padStart(2, "0")}`;
+
+  if (isPrimaryDisplay) {
+    return <>{formatTime(timeLeft)}</>;
+  }
 
   return (
     <div className="p-4 rounded-xl shadow-lg mb-6 transition-all duration-300 bg-slate-700">

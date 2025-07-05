@@ -3,6 +3,20 @@
 // We can remove the specific table types for now
 // import type { Tables } from "@/lib/database.types";
 
+import { useState } from "react";
+import { useRouter } from 'next/navigation';
+import LiftCard from "./LiftCard";
+import ProgressChart from "./ProgressChart";
+import { signOut } from "../actions";
+import WorkoutHistory from "./WorkoutHistory";
+
+type SetUI = {
+  id?: number;
+  reps: string;
+  weight: string;
+  logged: boolean;
+};
+
 // A more flexible type for the workout data we are passing in
 type WorkoutData = {
   id: number;
@@ -10,19 +24,16 @@ type WorkoutData = {
   workout_exercises: {
     id: number;
     exercise: string;
+    instance: number;
     sets: {
       id: number;
       reps: number;
       weight: number;
       created_at: string | null;
+      set_order: number;
     }[];
   }[];
 };
-
-import { useState } from "react";
-import LiftCard from "./LiftCard";
-import ProgressChart from "./ProgressChart";
-import { signOut } from "../actions";
 
 interface DashboardProps {
   // email: string | undefined; // No longer needed
@@ -30,14 +41,16 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ allWorkouts }: DashboardProps) {
+  const router = useRouter();
   const allLifts = ["Low Row", "Lat Pulldown", "Bench Press", "Pull-ups", "Leg Press", "Bicep Curl"];
   const [selectedLift, setSelectedLift] = useState(allLifts[2]); // Default to Bench Press
-  
+
   const today = new Date().toISOString().slice(0, 10);
   const todaysWorkout = allWorkouts?.find(w => w.workout_date === today);
-  const todaysExercise = todaysWorkout?.workout_exercises.find(
+
+  const todaysExercises = todaysWorkout?.workout_exercises.filter(
     (we) => we.exercise === selectedLift
-  );
+  ) ?? [];
   
   const historicalSets = allWorkouts
     ?.flatMap(w => w.workout_exercises)
@@ -45,6 +58,10 @@ export default function Dashboard({ allWorkouts }: DashboardProps) {
     .flatMap(we => we.sets)
     .filter((set): set is typeof set & { created_at: string } => !!set.created_at)
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) ?? [];
+  
+  const handleWorkoutComplete = () => {
+    router.refresh();
+  };
 
   return (
     <div className="w-full max-w-2xl mx-auto p-4 relative">
@@ -83,14 +100,17 @@ export default function Dashboard({ allWorkouts }: DashboardProps) {
       <div className="bg-gray-900 p-6 rounded-lg shadow-lg">
         <LiftCard
           exerciseName={selectedLift}
-          workoutExercise={todaysExercise}
+          todaysWorkoutExercises={todaysExercises}
+          onComplete={handleWorkoutComplete}
         />
       </div>
 
       <div className="mt-8">
-        <h2 className="text-2xl font-bold text-center text-white mb-4">Progress History</h2>
+        <h2 className="text-2xl font-bold text-center text-white mb-4">Progress Over Time</h2>
         <ProgressChart data={historicalSets} />
       </div>
+
+      <WorkoutHistory allWorkouts={allWorkouts} exerciseName={selectedLift} />
     </div>
   );
 } 

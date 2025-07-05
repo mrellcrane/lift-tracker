@@ -36,11 +36,13 @@ export default async function Home() {
       workout_exercises (
         id,
         exercise,
+        instance,
         sets (
           id,
           reps,
           weight,
-          created_at
+          created_at,
+          set_order
         )
       )
     `

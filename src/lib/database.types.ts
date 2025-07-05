@@ -9,6 +9,33 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      exercise_settings: {
+        Row: {
+          created_at: string
+          default_sets: number
+          exercise_name: string
+          id: number
+          rest_duration_seconds: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          default_sets?: number
+          exercise_name: string
+          id?: number
+          rest_duration_seconds?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          default_sets?: number
+          exercise_name?: string
+          id?: number
+          rest_duration_seconds?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       sets: {
         Row: {
           created_at: string | null
@@ -52,25 +79,28 @@ export type Database = {
       }
       workout_exercises: {
         Row: {
-          created_at: string | null
+          created_at: string
           exercise: string
           id: number
-          seq: number
-          workout_id: number | null
+          instance: number
+          seq: number | null
+          workout_id: number
         }
         Insert: {
-          created_at?: string | null
+          created_at?: string
           exercise: string
-          id?: never
-          seq: number
-          workout_id?: number | null
+          id?: number
+          instance?: number
+          seq?: number | null
+          workout_id: number
         }
         Update: {
-          created_at?: string | null
+          created_at?: string
           exercise?: string
-          id?: never
-          seq?: number
-          workout_id?: number | null
+          id?: number
+          instance?: number
+          seq?: number | null
+          workout_id?: number
         }
         Relationships: [
           {
